@@ -89,25 +89,25 @@ public class ProdutosController : ControllerBase
     // =====================================================================
 
     [HttpGet]
-
     public async Task<ActionResult<IEnumerable<Produto>>> GetProdutos()
-
     {
-
-        // _context.Produtos é o DbSet<Produto> — representa a tabela "Produtos".
-
-        // .ToListAsync() executa: SELECT * FROM "Produtos"
-
-        // e retorna o resultado como uma List<Produto>.
-
-        var produtos = await _context.Produtos.ToListAsync();
-
-
-
-        // Ok(produtos) retorna HTTP 200 com os produtos serializados em JSON.
+        // ANTES (sem relacionamento):
+        //   var produtos = await _context.Produtos.ToListAsync();
+        //   → SQL: SELECT * FROM "Produtos"
+        //   → produto.Categoria seria null
+        //
+        // DEPOIS (com Include):
+        //   → SQL: SELECT p.*, c.* FROM "Produtos" p
+        //          LEFT JOIN "Categorias" c ON c."Id" = p."CategoriaId"
+        //   → produto.Categoria é o objeto completo { Id, Nome, Descricao }
+        //
+        // .Include(p => p.Categoria) é o "Eager Loading":
+        // instrui o EF a carregar a entidade relacionada NA MESMA QUERY.
+        var produtos = await _context.Produtos
+            .Include(p => p.Categoria)
+            .ToListAsync();
 
         return Ok(produtos);
-
     }
 
 
@@ -129,39 +129,25 @@ public class ProdutosController : ControllerBase
     // =====================================================================
 
     [HttpGet("{id}")]
-
     public async Task<ActionResult<Produto>> GetProduto(int id)
-
     {
-
-        // FindAsync busca pelo valor da chave primária.
-
-        // Equivalente a: SELECT * FROM "Produtos" WHERE "Id" = @id LIMIT 1
-
-        // Retorna null se não encontrar.
-
-        var produto = await _context.Produtos.FindAsync(id);
-
-
-
-        // Se o produto não foi encontrado, retornamos HTTP 404 Not Found
-
-        // com uma mensagem explicativa em JSON.
+        // Note que aqui usamos FirstOrDefaultAsync em vez de FindAsync.
+        // FindAsync não suporta .Include() — ele busca diretamente pelo PK
+        // sem possibilidade de incluir relacionamentos.
+        //
+        // FirstOrDefaultAsync permite encadear .Include() e .Where()
+        // antes de executar a query.
+        var produto = await _context.Produtos
+            .Include(p => p.Categoria)
+            .Include(p => p.DetalheProduto)
+            .FirstOrDefaultAsync(p => p.Id == id);
 
         if (produto == null)
-
         {
-
             return NotFound(new { mensagem = $"Produto com ID {id} não encontrado." });
-
         }
 
-
-
-        // HTTP 200 com o produto encontrado
-
         return Ok(produto);
-
     }
 
 

@@ -24,7 +24,29 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Sem isso, o .NET não sabe que existem Controllers na aplicação.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // ReferenceHandler.IgnoreCycles instrui o serializador JSON a
+        // ignorar referências circulares em vez de lançar uma exceção.
+        //
+        // Quando detecta um ciclo (Produto → Categoria → Produtos → ...),
+        // ele simplesmente para de serializar naquele ponto, colocando null.
+        //
+        // Resultado no JSON:
+        // {
+        //   "id": 1,
+        //   "nome": "Notebook",
+        //   "categoriaId": 1,
+        //   "categoria": {
+        //     "id": 1,
+        //     "nome": "Eletrônicos",
+        //     "produtos": null  ← parou aqui, evitando o loop
+        //   }
+        // }
+        options.JsonSerializerOptions.ReferenceHandler =
+            System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    });
 
 
 
